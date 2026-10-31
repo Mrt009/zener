@@ -1,0 +1,764 @@
+<title>Hot Deformation Flow Data Explorer</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg: #f3eff8; --surface: #ffffff; --fg: #1a2344; --fg2: #3d6b99; --fg3: #8ea8c4;
+    --b1: #c4d8eb; --b2: #eef2f7;
+    --shadow: 0 2px 10px rgba(61,107,153,0.06);
+    --shadow-lg: 0 4px 20px rgba(61,107,153,0.09);
+    --r: 18px; --r2: 22px;
+    --font: 'Inter', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+    --accent: #3d6b99; --coral: #e85b5b;
+    --c1: #3d6b99; --c2: #e85b5b; --c3: #4caf7d; --c4: #e8a44c;
+    --c5: #7c6bc4; --c6: #4ca8c4; --c7: #d45da0; --c8: #7bb84c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151525; --surface: #1e1e32; --fg: #e8e4f0; --fg2: #8ea8c4; --fg3: #5a6e82;
+      --b1: #2e3a4e; --b2: #1a1a2e;
+      --shadow: 0 2px 10px rgba(0,0,0,0.25); --shadow-lg: 0 4px 20px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151525; --surface: #1e1e32; --fg: #e8e4f0; --fg2: #8ea8c4; --fg3: #5a6e82;
+    --b1: #2e3a4e; --b2: #1a1a2e;
+    --shadow: 0 2px 10px rgba(0,0,0,0.25); --shadow-lg: 0 4px 20px rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font-family:var(--font);padding:0 24px 60px;line-height:1.6;font-weight:400}
+  .wrap{max-width:960px;margin:0 auto}
+
+  /* Hero / Nav */
+  .nav{padding:42px 0 34px;margin-bottom:16px;border-bottom:none;text-align:center}
+  .nav-title{font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;line-height:1.15;color:var(--fg)}
+  .nav-sub{font-size:0.92rem;color:var(--fg3);margin-top:10px;font-weight:400;max-width:560px;margin-left:auto;margin-right:auto}
+
+  /* Section */
+  .section{margin-top:40px}
+  .sec-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .sec-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:var(--fg2);background:var(--b2);border:1.5px solid var(--b1)}
+  .sec-label{font-size:0.8rem;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:0.08em}
+
+  /* Card */
+  .card{background:var(--surface);border:1.5px solid var(--b1);border-radius:var(--r2);padding:26px;box-shadow:var(--shadow-lg)}
+
+  /* Sheet chips */
+  .chip-group{margin-bottom:18px}
+  .chip-group-label{font-size:0.72rem;font-weight:600;color:var(--fg3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    padding:10px 18px;border-radius:30px;font-family:var(--mono);font-size:0.76rem;font-weight:500;
+    cursor:pointer;transition:all 0.2s ease;border:1.5px solid var(--b1);background:var(--surface);color:var(--fg2)
+  }
+  .chip:hover{border-color:var(--accent);color:var(--accent);background:var(--b2)}
+  .chip.on{color:#fff;border-color:transparent;box-shadow:0 3px 12px rgba(0,0,0,0.12)}
+  .chip.on.t1{background:var(--c1)} .chip.on.t2{background:var(--c2)}
+  .chip.on.t3{background:var(--c3)} .chip.on.t4{background:var(--c5)}
+  .chip.on.t5{background:var(--c6)} .chip.on.tall{background:var(--fg)}
+
+  /* Inputs */
+  .inp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px}
+  .inp-wrap{display:flex;flex-direction:column;gap:5px}
+  .inp-label{font-size:0.7rem;font-weight:600;color:var(--fg2);font-family:var(--mono)}
+  .inp{
+    padding:11px 16px;border:1.5px solid var(--b1);border-radius:30px;background:var(--surface);
+    color:var(--fg);font-family:var(--mono);font-size:0.8rem;transition:all 0.2s;width:100%
+  }
+  .inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(61,107,153,0.1)}
+  select.inp{appearance:auto;border-radius:30px}
+
+  /* Buttons */
+  .btn-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+  .btn-primary{
+    padding:13px 32px;border:none;border-radius:30px;font-family:var(--font);font-size:0.88rem;font-weight:600;
+    cursor:pointer;transition:all 0.2s ease;color:#fff
+  }
+  .btn-primary:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  .btn-primary:active{transform:scale(0.97)}
+  .btn-compute{background:var(--c1);box-shadow:0 4px 14px rgba(61,107,153,0.25)}
+  .btn-excel{background:var(--c3);box-shadow:0 4px 14px rgba(76,175,125,0.25)}
+  .btn-plot{background:var(--coral);box-shadow:0 4px 14px rgba(232,91,91,0.25)}
+
+  /* Stats */
+  .stat-bar{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+  .stat{
+    display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:30px;
+    background:var(--b2);border:1.5px solid var(--b1);font-size:0.74rem;font-weight:500;color:var(--fg2)
+  }
+  .stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+  /* Table */
+  .t-wrap{max-height:380px;overflow:auto;border:1.5px solid var(--b1);border-radius:var(--r);margin:14px 0}
+  table{width:100%;border-collapse:collapse}
+  thead{position:sticky;top:0;z-index:1}
+  th{background:var(--surface);color:var(--fg2);padding:12px 14px;text-align:left;font-size:0.7rem;font-weight:600;font-family:var(--mono);border-bottom:2px solid var(--b1);white-space:nowrap}
+  td{padding:9px 14px;font-family:var(--mono);font-size:0.74rem;white-space:nowrap;color:var(--fg2);border-bottom:1px solid var(--b2)}
+  tr:hover td{background:var(--b2);color:var(--fg)}
+  .t-info{font-size:0.74rem;color:var(--fg3)}
+
+  /* Plot options */
+  .plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:18px;align-items:start}
+  .opt-title{font-size:0.7rem;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px}
+  .opt-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.82rem;color:var(--fg2);cursor:pointer}
+  .opt-item input{accent-color:var(--coral);width:16px;height:16px}
+  .opt-item label{cursor:pointer}
+
+  /* Chart */
+  .chart-card{background:var(--surface);border:1.5px solid var(--b1);border-radius:var(--r2);padding:18px;box-shadow:var(--shadow-lg);margin-bottom:14px;position:relative}
+  .fullscreen-btn{
+    position:absolute;top:12px;right:12px;z-index:10;width:34px;height:34px;border-radius:50%;
+    border:1.5px solid var(--b1);background:var(--surface);color:var(--fg2);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-size:0.9rem;transition:all 0.2s
+  }
+  .fullscreen-btn:hover{background:var(--b2);color:var(--accent)}
+  .chart-card.fullscreen{
+    position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;
+    border-radius:0;margin:0;padding:24px;border:none;overflow:auto;background:var(--surface)
+  }
+  .chart-card.fullscreen .fullscreen-btn{top:18px;right:18px}
+
+  /* Footer */
+  footer{font-family:var(--font)}
+
+  /* Mobile */
+  @media(max-width:640px){
+    body{padding:0 16px 40px}
+    .nav{padding:32px 0 28px;text-align:left}
+    .nav-title{font-size:1.6rem}
+    .nav-sub{font-size:0.85rem;margin-left:0}
+    .inp-grid{grid-template-columns:1fr 1fr}
+    .btn-row{flex-direction:column}
+    .btn-primary{width:100%;text-align:center;padding:14px 20px;font-size:0.9rem}
+    .plot-grid{grid-template-columns:1fr 1fr}
+    .stat{font-size:0.7rem;padding:6px 12px}
+    th,td{padding:6px 10px;font-size:0.66rem}
+    .card{padding:18px;border-radius:16px}
+    .chart-card{padding:12px;border-radius:16px}
+    .opt-item{padding:5px 0;font-size:0.84rem}
+    .opt-item input{width:18px;height:18px}
+    .chip{padding:10px 14px;font-size:0.76rem}
+    .t-wrap{max-height:300px;-webkit-overflow-scrolling:touch}
+    .sec-label{font-size:0.74rem}
+    .section{margin-top:28px}
+  }
+  @media(max-width:400px){
+    .nav-title{font-size:1.3rem}
+    .inp-grid{grid-template-columns:1fr}
+    .plot-grid{grid-template-columns:1fr}
+    .chips{gap:6px}
+    .chip{padding:9px 12px;font-size:0.72rem}
+  }
+  .theme-toggle{
+    position:fixed;top:16px;right:16px;z-index:100;width:40px;height:40px;border-radius:50%;
+    border:1.5px solid var(--b1);background:var(--surface);color:var(--fg2);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+    box-shadow:var(--shadow);transition:all 0.2s
+  }
+  .theme-toggle:hover{background:var(--b2);color:var(--accent)}
+</style>
+
+<script>
+document.documentElement.setAttribute('data-theme', 'light');
+function toggleTheme() {
+  var current = document.documentElement.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.querySelector('.theme-toggle').textContent = next === 'dark' ? '☀' : '☽';
+}
+</script>
+
+<button class="theme-toggle" onclick="toggleTheme()">&#x263D;</button>
+
+<div class="wrap">
+
+<header class="nav">
+  <div class="nav-title">Hot Deformation<br>Flow Data Explorer</div>
+  <div class="nav-sub">Zener-Hollomon Pipeline — Compute, Inspect & Plot Flow Stress, Strain Rate and Viscosity</div>
+</header>
+
+<!-- 1 — Sheets -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">1</div><span class="sec-label">Select Sheet</span></div>
+  <div class="card">
+    <div class="chip-group">
+      <div class="chip-group-label">Set A — Coarse Grains</div>
+      <div class="chips">
+        <div class="chip on t1" onclick="pick(0)">d1 = 12.06 μm</div>
+        <div class="chip" onclick="pick(1)">d2 = 11.95 μm</div>
+        <div class="chip" onclick="pick(2)">d3 = 12.24 μm</div>
+        <div class="chip" onclick="mergeSet('A')" id="ma">Merge A</div>
+      </div>
+    </div>
+    <div class="chip-group">
+      <div class="chip-group-label">Set B — Fine Grains</div>
+      <div class="chips">
+        <div class="chip" onclick="pick(3)">d4 = 2.131 μm</div>
+        <div class="chip" onclick="pick(4)">d5 = 2.028 μm</div>
+        <div class="chip" onclick="pick(5)">d6 = 2.297 μm</div>
+        <div class="chip" onclick="mergeSet('B')" id="mb">Merge B</div>
+        <div class="chip" onclick="mergeAll()" id="mall">All 6</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 — Parameters -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">2</div><span class="sec-label">Parameters</span></div>
+  <div class="card">
+    <div class="inp-grid">
+      <div class="inp-wrap"><span class="inp-label">ds (μm)</span><input class="inp" type="number" id="ds" value="12.06" step="0.01"></div>
+      <div class="inp-wrap"><span class="inp-label">Equation</span><select class="inp" id="eq"><option value="set1">[-0.6+0.08 log Z]^-1</option><option value="set2">log d=3.024-0.16 log Z</option></select></div>
+      <div class="inp-wrap"><span class="inp-label">A (1/s)</span><input class="inp" type="text" id="iA" value="1.63e13"></div>
+      <div class="inp-wrap"><span class="inp-label">alpha (1/MPa)</span><input class="inp" type="text" id="ial" value="0.01648"></div>
+      <div class="inp-wrap"><span class="inp-label">n</span><input class="inp" type="number" id="in" value="5.33" step="0.01"></div>
+      <div class="inp-wrap"><span class="inp-label">Q (kJ/mol)</span><input class="inp" type="number" id="iQ" value="191" step="1"></div>
+      <div class="inp-wrap"><span class="inp-label">T min (C)</span><input class="inp" type="number" id="itmin" value="300"></div>
+      <div class="inp-wrap"><span class="inp-label">T max (C)</span><input class="inp" type="number" id="itmax" value="500"></div>
+      <div class="inp-wrap"><span class="inp-label">N_Z</span><input class="inp" type="number" id="inz" value="200"></div>
+      <div class="inp-wrap"><span class="inp-label">N_T</span><input class="inp" type="number" id="int" value="200"></div>
+      <div class="inp-wrap"><span class="inp-label">CV noise</span><input class="inp" type="number" id="icv" value="0.02" step="0.005"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary btn-compute" onclick="compute()">Compute</button>
+      <button class="btn-primary btn-excel" onclick="downloadXL()" id="dl-btn" style="display:none">Download .xlsx</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3 — Table -->
+<div id="sec-table" style="display:none">
+  <div class="section">
+    <div class="sec-head"><div class="sec-num">3</div><span class="sec-label">Data Table</span></div>
+    <div class="stat-bar" id="stats"></div>
+    <div class="t-wrap" id="tw"></div>
+    <p class="t-info" id="row-info"></p>
+  </div>
+</div>
+
+<!-- 4 — Plot -->
+<div id="sec-plot" style="display:none">
+  <div class="section">
+    <div class="sec-head"><div class="sec-num">4</div><span class="sec-label">Plot</span></div>
+    <div class="card">
+      <div class="plot-grid">
+        <div>
+          <div class="opt-title">X Axis</div>
+          <select class="inp" id="sel-x">
+            <option value="ds">Grain Size (μm)</option>
+            <option value="log_Z">log10(Z)</option>
+            <option value="Z">Z (1/s)</option>
+            <option value="T_C">Temperature (C)</option>
+            <option value="T_K">Temperature (K)</option>
+            <option value="sigma">Flow Stress (MPa)</option>
+            <option value="eps_dot">Strain Rate (1/s)</option>
+            <option value="mu_eff">Viscosity (Pa.s)</option>
+          </select>
+        </div>
+        <div>
+          <div class="opt-title">Y Axis</div>
+          <div class="opt-item"><input type="checkbox" id="y-ds"><label for="y-ds">Grain Size (μm)</label></div>
+          <div class="opt-item"><input type="checkbox" id="y-log_Z"><label for="y-log_Z">log10(Z)</label></div>
+          <div class="opt-item"><input type="checkbox" id="y-Z"><label for="y-Z">Z (1/s)</label></div>
+          <div class="opt-item"><input type="checkbox" id="y-sigma" checked><label for="y-sigma">Flow Stress</label></div>
+          <div class="opt-item"><input type="checkbox" id="y-eps_dot"><label for="y-eps_dot">Strain Rate</label></div>
+          <div class="opt-item"><input type="checkbox" id="y-mu_eff"><label for="y-mu_eff">Viscosity</label></div>
+        </div>
+        <div>
+          <div class="opt-title">Layout</div>
+          <div class="opt-item"><input type="radio" name="layout" value="same" id="l-same" checked><label for="l-same">Same graph</label></div>
+          <div class="opt-item"><input type="radio" name="layout" value="sep" id="l-sep"><label for="l-sep">Separate</label></div>
+        </div>
+        <div>
+          <div class="opt-title">Style</div>
+          <div class="opt-item"><input type="radio" name="ptype" value="markers" id="pt-m"><label for="pt-m">Scatter</label></div>
+          <div class="opt-item"><input type="radio" name="ptype" value="lines" id="pt-l" checked><label for="pt-l">Lines</label></div>
+          <div class="opt-item"><input type="radio" name="ptype" value="lines+markers" id="pt-lm"><label for="pt-lm">Both</label></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary btn-plot" onclick="plotData()">Plot</button>
+        <button class="btn-primary" style="background:var(--c5);box-shadow:0 4px 14px rgba(124,58,237,0.3)" onclick="plotHeatmap()">Viscosity Heatmap</button>
+      </div>
+    </div>
+    <div id="charts" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<footer style="margin-top:56px;padding:24px 0;border-top:1px solid var(--b1);text-align:center;font-size:0.78rem;color:var(--fg3);letter-spacing:0.01em">&copy; 2026 Hot Deformation Flow Data Explorer. All rights reserved.</footer>
+
+</div>
+
+<script>
+const GAS_CONSTANT = 8.314;
+
+const SHEET_DEFINITIONS = [
+  { label: 'd1', grainSize: 12.06, equation: 'set1', A: 1.63e13, alpha: 0.01648, n: 5.33, Q: 191 },
+  { label: 'd2', grainSize: 11.95, equation: 'set1', A: 1.63e13, alpha: 0.01648, n: 5.33, Q: 191 },
+  { label: 'd3', grainSize: 12.24, equation: 'set1', A: 1.63e13, alpha: 0.01648, n: 5.33, Q: 191 },
+  { label: 'd4', grainSize: 2.131, equation: 'set2', A: 2.94e9,  alpha: 0.01733, n: 7.8,  Q: 159 },
+  { label: 'd5', grainSize: 2.028, equation: 'set2', A: 2.94e9,  alpha: 0.01733, n: 7.8,  Q: 159 },
+  { label: 'd6', grainSize: 2.297, equation: 'set2', A: 2.94e9,  alpha: 0.01733, n: 7.8,  Q: 159 },
+];
+
+let computedData = [];
+let activeSheetIndices = [0];
+
+const COLOR_PALETTE = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+
+const VARIABLE_LABELS = {
+  ds:      'Grain Size (μm)',
+  log_Z:   'log10(Z)',
+  Z:       'Z (1/s)',
+  T_C:     'Temperature (C)',
+  T_K:     'Temperature (K)',
+  sigma:   'Flow Stress (MPa)',
+  eps_dot: 'Strain Rate (1/s)',
+  mu_eff:  'Viscosity (Pa.s)'
+};
+
+const LOG_SCALE_VARIABLES = new Set(['Z', 'eps_dot', 'mu_eff']);
+
+function getAllChipElements() {
+  return document.querySelectorAll('.chip');
+}
+
+function clearAllChips() {
+  getAllChipElements().forEach(function(chip) {
+    chip.classList.remove('on', 't1', 't2', 't3', 't4', 't5', 'tall');
+  });
+}
+
+function pick(sheetIndex) {
+  clearAllChips();
+  var sheetChips = [...getAllChipElements()].filter(function(chip) { return !chip.id; });
+  var colorClass = sheetIndex < 3 ? 't1' : 't4';
+  sheetChips[sheetIndex].classList.add('on', colorClass);
+  activeSheetIndices = [sheetIndex];
+
+  var sheet = SHEET_DEFINITIONS[sheetIndex];
+  document.getElementById('ds').value = sheet.grainSize;
+  document.getElementById('eq').value = sheet.equation;
+  document.getElementById('iA').value = sheet.A.toExponential();
+  document.getElementById('ial').value = sheet.alpha;
+  document.getElementById('in').value = sheet.n;
+  document.getElementById('iQ').value = sheet.Q;
+}
+
+function mergeSet(setName) {
+  clearAllChips();
+  var buttonElement = document.getElementById(setName === 'A' ? 'ma' : 'mb');
+  buttonElement.classList.add('on', setName === 'A' ? 't1' : 't4');
+  activeSheetIndices = setName === 'A' ? [0, 1, 2] : [3, 4, 5];
+}
+
+function mergeAll() {
+  clearAllChips();
+  document.getElementById('mall').classList.add('on', 'tall');
+  activeSheetIndices = [0, 1, 2, 3, 4, 5];
+}
+
+function getInputFloat(elementId) {
+  return parseFloat(document.getElementById(elementId).value);
+}
+
+function getInputNumber(elementId) {
+  return Number(document.getElementById(elementId).value);
+}
+
+function computeZFromGrainSize(grainSize, equationType) {
+  if (equationType === 'set1') {
+    return Math.pow(10, (1 / grainSize + 0.6) / 0.08);
+  }
+  return Math.pow(10, (3.024 - Math.log10(grainSize)) / 0.16);
+}
+
+function randomGaussian() {
+  var uniformA = 0;
+  var uniformB = 0;
+  while (!uniformA) uniformA = Math.random();
+  while (!uniformB) uniformB = Math.random();
+  return Math.sqrt(-2 * Math.log(uniformA)) * Math.cos(2 * Math.PI * uniformB);
+}
+
+function generateZValues(zMean, count, coefficientOfVariation) {
+  var logMean = Math.log10(zMean);
+  var logSigma = coefficientOfVariation * Math.abs(logMean);
+  var values = [];
+  for (var i = 0; i < count; i++) {
+    values.push(Math.pow(10, logMean + logSigma * randomGaussian()));
+  }
+  return values;
+}
+
+function createLinearSpace(start, end, count) {
+  var result = [];
+  var step = (end - start) / (count - 1);
+  for (var i = 0; i < count; i++) {
+    result.push(start + step * i);
+  }
+  return result;
+}
+
+function computeFlowStress(zValue, constantA, alpha, stressExponent) {
+  var ratio = Math.pow(zValue / constantA, 1 / stressExponent);
+  return (1 / alpha) * Math.log(ratio + Math.sqrt(ratio * ratio + 1));
+}
+
+function computeStrainRate(zValue, activationEnergy, temperature) {
+  return zValue * Math.exp(-activationEnergy / (GAS_CONSTANT * temperature));
+}
+
+function formatScientific(value) {
+  if (!value) return '0';
+  var exponent = Math.floor(Math.log10(Math.abs(value)));
+  var mantissa = value / Math.pow(10, exponent);
+  return mantissa.toFixed(2) + 'e' + exponent;
+}
+
+function compute() {
+  computedData = [];
+  var numZValues = getInputFloat('inz');
+  var numTemperatures = getInputFloat('int');
+  var noiseCV = getInputFloat('icv');
+  var tempMinC = getInputFloat('itmin');
+  var tempMaxC = getInputFloat('itmax');
+
+  activeSheetIndices.forEach(function(sheetIndex) {
+    var sheetParams;
+    if (activeSheetIndices.length === 1) {
+      sheetParams = {
+        label: SHEET_DEFINITIONS[sheetIndex].label,
+        grainSize: getInputFloat('ds'),
+        equation: document.getElementById('eq').value,
+        A: getInputNumber('iA'),
+        alpha: getInputNumber('ial'),
+        n: getInputFloat('in'),
+        Q: getInputFloat('iQ')
+      };
+    } else {
+      sheetParams = SHEET_DEFINITIONS[sheetIndex];
+    }
+
+    var activationEnergyJ = sheetParams.Q * 1000;
+    var zMean = computeZFromGrainSize(sheetParams.grainSize, sheetParams.equation);
+    var zValues = generateZValues(zMean, numZValues, noiseCV).sort(function(a, b) { return a - b; });
+    var temperatures = createLinearSpace(tempMinC + 273.15, tempMaxC + 273.15, numTemperatures);
+
+    for (var zi = 0; zi < zValues.length; zi++) {
+      var zValue = zValues[zi];
+      var flowStress = computeFlowStress(zValue, sheetParams.A, sheetParams.alpha, sheetParams.n);
+
+      for (var ti = 0; ti < temperatures.length; ti++) {
+        var tempK = temperatures[ti];
+        var strainRate = computeStrainRate(zValue, activationEnergyJ, tempK);
+        var viscosity = flowStress * 1e6 / (3 * strainRate);
+
+        computedData.push({
+          sheet: sheetParams.label,
+          ds: sheetParams.grainSize,
+          Z: zValue,
+          log_Z: Math.log10(zValue),
+          T_K: tempK,
+          T_C: tempK - 273.15,
+          sigma: flowStress,
+          eps_dot: strainRate,
+          mu_eff: viscosity
+        });
+      }
+    }
+  });
+
+  showTable();
+  document.getElementById('dl-btn').style.display = '';
+  document.getElementById('sec-table').style.display = '';
+  document.getElementById('sec-plot').style.display = '';
+}
+
+function showTable() {
+  var columnKeys = ['sheet', 'ds', 'log_Z', 'Z', 'T_C', 'T_K', 'sigma', 'eps_dot', 'mu_eff'];
+  var columnHeaders = ['Sheet', 'ds', 'log10(Z)', 'Z', 'T (C)', 'T (K)', 'sigma', 'eps_dot', 'mu_eff'];
+  var maxPreviewRows = 500;
+  var previewRows = computedData.slice(0, maxPreviewRows);
+
+  var tableHtml = '<table><thead><tr>';
+  columnHeaders.forEach(function(header) {
+    tableHtml += '<th>' + header + '</th>';
+  });
+  tableHtml += '</tr></thead><tbody>';
+
+  previewRows.forEach(function(row) {
+    tableHtml += '<tr>';
+    columnKeys.forEach(function(key) {
+      var value = row[key];
+      if (typeof value === 'number') {
+        tableHtml += '<td>' + (Math.abs(value) > 1e4 || Math.abs(value) < 0.01 ? value.toExponential(3) : value.toFixed(4)) + '</td>';
+      } else {
+        tableHtml += '<td>' + value + '</td>';
+      }
+    });
+    tableHtml += '</tr>';
+  });
+  tableHtml += '</tbody></table>';
+
+  document.getElementById('tw').innerHTML = tableHtml;
+
+  var shownCount = Math.min(maxPreviewRows, computedData.length).toLocaleString();
+  var totalCount = computedData.length.toLocaleString();
+  document.getElementById('row-info').textContent =
+    'Showing ' + shownCount + ' of ' + totalCount + ' rows' +
+    (computedData.length > maxPreviewRows ? ' — download .xlsx for full data' : '');
+
+  var sheetNames = [...new Set(computedData.map(function(row) { return row.sheet; }))];
+  var sigmaMin = Math.min(...computedData.map(function(row) { return row.sigma; }));
+  var sigmaMax = Math.max(...computedData.map(function(row) { return row.sigma; }));
+
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><div class="stat-dot" style="background:var(--c1)"></div>' + totalCount + ' rows</div>' +
+    '<div class="stat"><div class="stat-dot" style="background:var(--c5)"></div>' + sheetNames.join(', ') + '</div>' +
+    '<div class="stat"><div class="stat-dot" style="background:var(--c2)"></div>sigma: ' + sigmaMin.toFixed(1) + ' – ' + sigmaMax.toFixed(1) + ' MPa</div>' +
+    '<div class="stat"><div class="stat-dot" style="background:var(--c3)"></div>T: ' + getInputFloat('itmin') + ' – ' + getInputFloat('itmax') + ' C</div>';
+}
+
+function downloadXL() {
+  if (!computedData.length) return;
+  var sheetNames = [...new Set(computedData.map(function(row) { return row.sheet; }))];
+  var workbook = XLSX.utils.book_new();
+
+  sheetNames.forEach(function(sheetName) {
+    var sheetRows = computedData.filter(function(row) { return row.sheet === sheetName; });
+    var arrayOfArrays = [['ds (μm)', 'log10(Z)', 'Z (1/s)', 'T (C)', 'T (K)', 'sigma (MPa)', 'eps_dot (1/s)', 'mu_eff (Pa.s)']];
+    sheetRows.forEach(function(row) {
+      arrayOfArrays.push([row.ds, row.log_Z, row.Z, row.T_C, row.T_K, row.sigma, row.eps_dot, row.mu_eff]);
+    });
+    var worksheet = XLSX.utils.aoa_to_sheet(arrayOfArrays);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  });
+
+  XLSX.writeFile(workbook, 'flow_data_' + sheetNames.join('_') + '.xlsx');
+}
+
+function isDarkMode() {
+  var themeAttr = document.documentElement.getAttribute('data-theme');
+  if (themeAttr === 'dark') return true;
+  if (themeAttr === 'light') return false;
+  return matchMedia('(prefers-color-scheme:dark)').matches;
+}
+
+function getPlotTheme() {
+  var dark = isDarkMode();
+  return {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: dark ? '#18181b' : '#fafafa',
+    font: { family: 'Inter, system-ui', color: dark ? '#d4d4d8' : '#374151', size: 12 },
+    margin: { t: 44, b: 52, l: 66, r: 20 },
+    xaxis: { gridcolor: dark ? '#27272a' : '#e5e7eb', zerolinecolor: dark ? '#3f3f46' : '#d1d5db', linecolor: dark ? '#3f3f46' : '#d1d5db' },
+    yaxis: { gridcolor: dark ? '#27272a' : '#e5e7eb', zerolinecolor: dark ? '#3f3f46' : '#d1d5db', linecolor: dark ? '#3f3f46' : '#d1d5db' },
+  };
+}
+
+var plotConfig = { responsive: true, displayModeBar: false };
+
+function addFullscreenButton(cardDiv, chartId) {
+  var btn = document.createElement('button');
+  btn.className = 'fullscreen-btn';
+  btn.innerHTML = '&#x26F6;';
+  btn.title = 'Toggle fullscreen';
+  btn.onclick = function() {
+    cardDiv.classList.toggle('fullscreen');
+    btn.innerHTML = cardDiv.classList.contains('fullscreen') ? '&#x2716;' : '&#x26F6;';
+    setTimeout(function() { Plotly.Plots.resize(document.getElementById(chartId)); }, 100);
+  };
+  cardDiv.appendChild(btn);
+}
+
+function sampleDataForPlot(rows) {
+  var maxPoints = 2000;
+  if (rows.length <= maxPoints) return rows;
+  var step = Math.ceil(rows.length / maxPoints);
+  return rows.filter(function(_, index) { return index % step === 0; });
+}
+
+function plotData() {
+  if (!computedData.length) return;
+
+  var xVariable = document.getElementById('sel-x').value;
+  var yVariables = [];
+  ['ds', 'log_Z', 'Z', 'sigma', 'eps_dot', 'mu_eff'].forEach(function(key) {
+    if (document.getElementById('y-' + key).checked) yVariables.push(key);
+  });
+  if (!yVariables.length) { alert('Pick at least one Y variable'); return; }
+
+  var layoutMode = document.querySelector('input[name="layout"]:checked').value;
+  var plotType = document.querySelector('input[name="ptype"]:checked').value;
+  var theme = getPlotTheme();
+  var chartArea = document.getElementById('charts');
+  chartArea.innerHTML = '';
+
+  var sheetNames = [...new Set(computedData.map(function(row) { return row.sheet; }))];
+
+  if (layoutMode === 'same') {
+    var cardDiv = document.createElement('div');
+    cardDiv.className = 'chart-card';
+    var chartDiv = document.createElement('div');
+    chartDiv.id = 'chart-combined';
+    cardDiv.appendChild(chartDiv);
+    chartArea.appendChild(cardDiv);
+
+    var AXIS_COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6'];
+    var traces = [];
+    var layout = {
+      ...theme,
+      title: { text: yVariables.map(function(v) { return VARIABLE_LABELS[v]; }).join(', ') + ' vs ' + VARIABLE_LABELS[xVariable], font: { size: 13, weight: 600 } },
+      xaxis: { ...theme.xaxis, title: { text: VARIABLE_LABELS[xVariable] } },
+      legend: { font: { size: 10 } },
+      margin: { t: 44, b: 52, l: 66, r: 66 * Math.max(1, yVariables.length - 1) }
+    };
+    if (LOG_SCALE_VARIABLES.has(xVariable)) layout.xaxis.type = 'log';
+
+    yVariables.forEach(function(yVar, varIndex) {
+      var axisKey = varIndex === 0 ? 'yaxis' : 'yaxis' + (varIndex + 1);
+      var axisColor = AXIS_COLORS[varIndex % 5];
+
+      var axisConfig = {
+        ...theme.yaxis,
+        title: { text: VARIABLE_LABELS[yVar], font: { color: axisColor } },
+        tickfont: { color: axisColor },
+        linecolor: axisColor
+      };
+      if (LOG_SCALE_VARIABLES.has(yVar)) axisConfig.type = 'log';
+
+      if (varIndex > 0) {
+        axisConfig.overlaying = 'y';
+        axisConfig.side = 'right';
+        axisConfig.anchor = varIndex <= 1 ? 'x' : 'free';
+        if (varIndex > 1) {
+          axisConfig.position = 1 - (varIndex - 1) * 0.08;
+        }
+      }
+
+      layout[axisKey] = axisConfig;
+
+      sheetNames.forEach(function(sheetName, sheetIdx) {
+        var sheetRows = computedData.filter(function(row) { return row.sheet === sheetName; });
+        var sampled = sampleDataForPlot(sheetRows);
+        var colorIdx = (varIndex * sheetNames.length + sheetIdx) % 8;
+        traces.push({
+          x: sampled.map(function(row) { return row[xVariable]; }),
+          y: sampled.map(function(row) { return row[yVar]; }),
+          yaxis: varIndex === 0 ? 'y' : 'y' + (varIndex + 1),
+          mode: plotType,
+          marker: { size: 4, color: COLOR_PALETTE[colorIdx] },
+          line: { color: COLOR_PALETTE[colorIdx], width: 2 },
+          name: sheetName + (yVariables.length > 1 ? ' — ' + VARIABLE_LABELS[yVar] : '')
+        });
+      });
+    });
+
+    Plotly.newPlot('chart-combined', traces, layout, plotConfig);
+    addFullscreenButton(cardDiv, 'chart-combined');
+
+  } else {
+    yVariables.forEach(function(yVar, varIndex) {
+      var cardDiv = document.createElement('div');
+      cardDiv.className = 'chart-card';
+      var chartDiv = document.createElement('div');
+      chartDiv.id = 'chart-' + varIndex;
+      cardDiv.appendChild(chartDiv);
+      chartArea.appendChild(cardDiv);
+
+      var traces = sheetNames.map(function(sheetName, sheetIdx) {
+        var sheetRows = computedData.filter(function(row) { return row.sheet === sheetName; });
+        var sampled = sampleDataForPlot(sheetRows);
+        return {
+          x: sampled.map(function(row) { return row[xVariable]; }),
+          y: sampled.map(function(row) { return row[yVar]; }),
+          mode: plotType,
+          marker: { size: 4, color: COLOR_PALETTE[sheetIdx % 8] },
+          line: { color: COLOR_PALETTE[sheetIdx % 8], width: 2 },
+          name: sheetName
+        };
+      });
+
+      var layout = {
+        ...theme,
+        title: { text: VARIABLE_LABELS[yVar] + ' vs ' + VARIABLE_LABELS[xVariable], font: { size: 13, weight: 600 } },
+        xaxis: { ...theme.xaxis, title: { text: VARIABLE_LABELS[xVariable] } },
+        yaxis: { ...theme.yaxis, title: { text: VARIABLE_LABELS[yVar] } },
+        legend: { font: { size: 10 } }
+      };
+      if (LOG_SCALE_VARIABLES.has(xVariable)) layout.xaxis.type = 'log';
+      if (LOG_SCALE_VARIABLES.has(yVar)) layout.yaxis.type = 'log';
+
+      Plotly.newPlot('chart-' + varIndex, traces, layout, plotConfig);
+      addFullscreenButton(cardDiv, 'chart-' + varIndex);
+    });
+  }
+}
+
+function plotHeatmap() {
+  if (!computedData.length) { alert('Compute data first'); return; }
+
+  var chartArea = document.getElementById('charts');
+  chartArea.innerHTML = '';
+  var theme = getPlotTheme();
+  var sheetNames = [...new Set(computedData.map(function(row) { return row.sheet; }))];
+
+  sheetNames.forEach(function(sheetName, sheetIdx) {
+    var sheetRows = computedData.filter(function(row) { return row.sheet === sheetName; });
+
+    var tempValues = [...new Set(sheetRows.map(function(r) { return r.T_C; }))].sort(function(a, b) { return a - b; });
+    var zValues = [...new Set(sheetRows.map(function(r) { return +r.log_Z.toFixed(4); }))].sort(function(a, b) { return a - b; });
+
+    var viscosityGrid = [];
+    for (var ti = 0; ti < tempValues.length; ti++) {
+      var row = [];
+      for (var zi = 0; zi < zValues.length; zi++) {
+        var match = sheetRows.find(function(r) {
+          return Math.abs(r.T_C - tempValues[ti]) < 0.1 && Math.abs(r.log_Z - zValues[zi]) < 0.005;
+        });
+        row.push(match ? Math.log10(match.mu_eff) : null);
+      }
+      viscosityGrid.push(row);
+    }
+
+    var cardDiv = document.createElement('div');
+    cardDiv.className = 'chart-card';
+    var chartDiv = document.createElement('div');
+    var chartId = 'heatmap-' + sheetIdx;
+    chartDiv.id = chartId;
+    cardDiv.appendChild(chartDiv);
+    chartArea.appendChild(cardDiv);
+
+    var trace = {
+      z: viscosityGrid,
+      x: zValues,
+      y: tempValues,
+      type: 'heatmap',
+      colorscale: 'Viridis',
+      colorbar: { title: { text: 'log₁₀(μ_eff) [Pa.s]', side: 'right' }, thickness: 15 },
+      hoverongaps: false,
+      hovertemplate: 'log₁₀(Z): %{x:.2f}<br>T: %{y:.1f} °C<br>log₁₀(μ): %{z:.2f}<extra>' + sheetName + '</extra>'
+    };
+
+    var layout = {
+      ...theme,
+      title: { text: 'Viscosity Heatmap — ' + sheetName + ' (ds = ' + sheetRows[0].ds + ' μm)', font: { size: 13, weight: 600 } },
+      xaxis: { ...theme.xaxis, title: { text: 'log₁₀(Z)' } },
+      yaxis: { ...theme.yaxis, title: { text: 'Temperature (°C)' } },
+      margin: { t: 44, b: 52, l: 66, r: 20 }
+    };
+
+    Plotly.newPlot(chartId, [trace], layout, plotConfig);
+    addFullscreenButton(cardDiv, chartId);
+  });
+}
+
+pick(0);
+</script>
